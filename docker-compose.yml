@@ -5,10 +5,12 @@ services:
     image: postgres:15-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     environment:
       POSTGRES_DB: finpilot
       POSTGRES_USER: finpilot
       POSTGRES_PASSWORD: finpilot
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     ports:
       - "5432:5432"
     healthcheck:
@@ -16,81 +18,117 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1000
+      --appendonly yes
+      --tcp-keepalive 60
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   web:
     build:
       context: .
       dockerfile: Dockerfile
+      target: final
     command: >
       sh -c "python manage.py migrate --settings=config.settings.production &&
-             python manage.py collectstatic --noinput --settings=config.settings.production &&
              gunicorn config.wsgi:application -c gunicorn.conf.py"
     volumes:
-      - .:/app
       - media_data:/app/media
-    ports:
-      - "8000:8000"
+      - static_data:/app/staticfiles
+    expose:
+      - "8000"
     env_file:
       - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
       - DATABASE_URL=postgresql://finpilot:finpilot@db:5432/finpilot
       - CACHE_URL=redis://redis:6379/1
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - WEB_CONCURRENCY=4
+      - GUNICORN_THREADS=4
+    restart: unless-stopped
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A config worker -l info --concurrency=2
+      target: final
+    command: celery -A config worker -l warning --concurrency=4 --prefetch-multiplier=1 -Q default,reports
     volumes:
-      - .:/app
       - media_data:/app/media
     env_file:
       - .env
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
       - DATABASE_URL=postgresql://finpilot:finpilot@db:5432/finpilot
       - CACHE_URL=redis://redis:6379/1
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    restart: unless-stopped
 
   beat:
     build:
       context: .
       dockerfile: Dockerfile
-    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+      target: final
+    command: celery -A config beat -l warning --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - .:/app
     env_file:
       - .env
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     environment:
       - DJANGO_SETTINGS_MODULE=config.settings.production
       - DATABASE_URL=postgresql://finpilot:finpilot@db:5432/finpilot
       - CACHE_URL=redis://redis:6379/1
       - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_data:/app/staticfiles:ro
+      - media_data:/app/media:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   media_data:
+  static_data:

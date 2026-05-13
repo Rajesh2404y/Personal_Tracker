@@ -1,6 +1,5 @@
 from django.core.cache import cache
 
-
 ANALYTICS_VERSION_KEY = 'analytics:v:{user_id}'
 ANALYTICS_KEY = 'analytics:{user_id}:{version}:{name}'
 DEFAULT_ANALYTICS_TIMEOUT = 300
@@ -35,3 +34,24 @@ def get_or_set_user_analytics(user_id, name, producer, timeout=DEFAULT_ANALYTICS
         value = producer()
         cache.set(key, value, timeout)
     return value
+
+
+def get_many_user_analytics(user_id, names):
+    """Fetch multiple analytics keys in a single cache round-trip."""
+    version = get_user_cache_version(user_id)
+    key_map = {
+        ANALYTICS_KEY.format(user_id=user_id, version=version, name=n): n
+        for n in names
+    }
+    cached = cache.get_many(list(key_map.keys()))
+    return {key_map[k]: v for k, v in cached.items()}
+
+
+def set_many_user_analytics(user_id, data, timeout=DEFAULT_ANALYTICS_TIMEOUT):
+    """Write multiple analytics keys in a single cache round-trip."""
+    version = get_user_cache_version(user_id)
+    mapping = {
+        ANALYTICS_KEY.format(user_id=user_id, version=version, name=name): value
+        for name, value in data.items()
+    }
+    cache.set_many(mapping, timeout)

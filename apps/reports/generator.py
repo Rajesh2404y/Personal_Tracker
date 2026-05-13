@@ -1,7 +1,6 @@
 import csv
 import io
 from decimal import Decimal
-from django.http import HttpResponse
 from django.db.models import Sum
 from apps.transactions.models import Transaction
 
@@ -11,19 +10,30 @@ class ReportGenerator:
         self.user = user
         self.date_from = date_from
         self.date_to = date_to
-        self.transactions = Transaction.objects.filter(
-            user=user, date__gte=date_from, date__lte=date_to
-        ).select_related('category').order_by('date')
+        self._qs = None
+
+    @property
+    def transactions(self):
+        if self._qs is None:
+            self._qs = (
+                Transaction.objects
+                .filter(user=self.user, date__gte=self.date_from, date__lte=self.date_to)
+                .select_related('category')
+                .only('date', 'transaction_type', 'description', 'amount', 'tags', 'category__name')
+                .order_by('date')
+            )
+        return self._qs
 
     def generate_csv(self):
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(['Date', 'Type', 'Category', 'Description', 'Amount', 'Tags'])
-        for txn in self.transactions:
+        # iterator() avoids loading all rows into memory at once
+        for txn in self.transactions.iterator(chunk_size=500):
             writer.writerow([
                 txn.date, txn.transaction_type,
                 txn.category.name if txn.category else '',
-                txn.description, txn.amount, txn.tags
+                txn.description, txn.amount, txn.tags,
             ])
         totals = self.transactions.values('transaction_type').annotate(total=Sum('amount'))
         writer.writerow([])
@@ -35,28 +45,32 @@ class ReportGenerator:
     def generate_excel(self):
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = 'Transactions'
+        wb = openpyxl.Workbook(write_only=True)  # write_only=True for memory efficiency
+        ws = wb.create_sheet('Transactions')
 
-        headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Tags']
         header_fill = PatternFill(start_color='6366F1', end_color='6366F1', fill_type='solid')
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=header)
-            cell.font = Font(bold=True, color='FFFFFF')
+        header_font = Font(bold=True, color='FFFFFF')
+        headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Tags']
+
+        header_row = []
+        for header in headers:
+            from openpyxl.cell.cell import WriteOnlyCell
+            cell = WriteOnlyCell(ws, value=header)
+            cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal='center')
+            header_row.append(cell)
+        ws.append(header_row)
 
-        for row_idx, txn in enumerate(self.transactions, 2):
-            ws.cell(row=row_idx, column=1, value=str(txn.date))
-            ws.cell(row=row_idx, column=2, value=txn.transaction_type.title())
-            ws.cell(row=row_idx, column=3, value=txn.category.name if txn.category else '')
-            ws.cell(row=row_idx, column=4, value=txn.description)
-            ws.cell(row=row_idx, column=5, value=float(txn.amount))
-            ws.cell(row=row_idx, column=6, value=txn.tags)
-
-        for col in ws.columns:
-            ws.column_dimensions[col[0].column_letter].width = 18
+        for txn in self.transactions.iterator(chunk_size=500):
+            ws.append([
+                str(txn.date),
+                txn.transaction_type.title(),
+                txn.category.name if txn.category else '',
+                txn.description,
+                float(txn.amount),
+                txn.tags,
+            ])
 
         output = io.BytesIO()
         wb.save(output)
@@ -64,10 +78,14 @@ class ReportGenerator:
         return output
 
     def get_summary(self):
-        income = self.transactions.filter(transaction_type='income').aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        expense = self.transactions.filter(transaction_type='expense').aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        # Single aggregation query for both income and expense
+        rows = self.transactions.values('transaction_type').annotate(total=Sum('amount'))
+        totals = {r['transaction_type']: r['total'] or Decimal('0') for r in rows}
+        income = totals.get('income', Decimal('0'))
+        expense = totals.get('expense', Decimal('0'))
         by_category = list(
-            self.transactions.values('category__name', 'transaction_type')
+            self.transactions
+            .values('category__name', 'transaction_type')
             .annotate(total=Sum('amount'))
             .order_by('-total')
         )

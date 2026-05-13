@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Sum
 from apps.accounts.models import CustomUser, Profile
 from apps.transactions.models import Transaction, Category
 from apps.budgets.models import Budget
@@ -66,7 +67,7 @@ class TransactionSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'transaction_type', 'amount', 'description', 'notes',
             'date', 'category', 'category_name', 'category_color',
-            'tags', 'tag_list', 'recurrence', 'is_recurring', 'created_at'
+            'tags', 'tag_list', 'recurrence', 'is_recurring', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 
@@ -84,18 +85,31 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 class BudgetSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    spent = serializers.ReadOnlyField()
-    remaining = serializers.ReadOnlyField()
-    utilization_percent = serializers.ReadOnlyField()
-    is_exceeded = serializers.ReadOnlyField()
+    # Use SerializerMethodField to read pre-annotated values — avoids N+1
+    spent = serializers.SerializerMethodField()
+    remaining = serializers.SerializerMethodField()
+    utilization_percent = serializers.SerializerMethodField()
+    is_exceeded = serializers.SerializerMethodField()
 
     class Meta:
         model = Budget
         fields = (
             'id', 'category', 'category_name', 'amount', 'month', 'year',
-            'alert_threshold', 'spent', 'remaining', 'utilization_percent', 'is_exceeded'
+            'alert_threshold', 'spent', 'remaining', 'utilization_percent', 'is_exceeded',
         )
         read_only_fields = ('id',)
+
+    def get_spent(self, obj):
+        return float(obj.spent)
+
+    def get_remaining(self, obj):
+        return float(obj.remaining)
+
+    def get_utilization_percent(self, obj):
+        return obj.utilization_percent
+
+    def get_is_exceeded(self, obj):
+        return obj.is_exceeded
 
     def validate_category(self, value):
         request = self.context.get('request')
@@ -121,7 +135,7 @@ class SavingsGoalSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'name', 'description', 'target_amount', 'current_amount',
             'target_date', 'icon', 'color', 'status',
-            'progress_percent', 'remaining_amount', 'is_completed', 'created_at'
+            'progress_percent', 'remaining_amount', 'is_completed', 'created_at',
         )
         read_only_fields = ('id', 'created_at')
 

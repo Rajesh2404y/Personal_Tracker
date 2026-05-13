@@ -2,6 +2,8 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 from .services import AnalyticsService
 from apps.ai_engine.models import AIInsight
 from apps.goals.models import SavingsGoal
@@ -27,21 +29,34 @@ def home(request):
 def dashboard(request):
     service = AnalyticsService(request.user)
 
-    # All cached — 120–300s TTL
-    summary = service.get_dashboard_summary()
-    monthly_trend = service.get_monthly_trend()
-    category_breakdown = service.get_category_breakdown()
-    budget_utilization = service.get_budget_utilization()
-    recent_transactions = service.get_recent_transactions()
+    # Single cache round-trip for all dashboard data
+    summary, monthly_trend, category_breakdown, budget_utilization = service.get_all_dashboard_data()
 
-    # Insights only refresh once per hour
-    from apps.ai_engine.engine import InsightEngine
-    InsightEngine(request.user).refresh_insights()
+    # Trigger async insight refresh via Celery (non-blocking)
+    try:
+        from apps.ai_engine.tasks import refresh_user_insights
+        refresh_user_insights.delay(request.user.id)
+    except Exception:
+        # Fallback to sync if Celery not available
+        from apps.ai_engine.engine import InsightEngine
+        InsightEngine(request.user).refresh_insights()
 
-    # Simple queries — indexed lookups
-    insights = list(AIInsight.objects.filter(user=request.user, is_read=False).only('id', 'insight_type', 'title', 'message', 'severity')[:5])
-    goals = list(SavingsGoal.objects.filter(user=request.user, status='active').only('id', 'name', 'target_amount', 'current_amount', 'icon', 'color')[:3])
-    unread_notifications = Notification.objects.filter(user=request.user, is_read=False).count()
+    # Indexed lookups — fast
+    insights = list(
+        AIInsight.objects
+        .filter(user=request.user, is_read=False)
+        .only('id', 'insight_type', 'title', 'message', 'severity')
+        [:5]
+    )
+    goals = list(
+        SavingsGoal.objects
+        .filter(user=request.user, status='active')
+        .only('id', 'name', 'target_amount', 'current_amount', 'icon', 'color')
+        [:3]
+    )
+    unread_notifications = Notification.objects.filter(
+        user=request.user, is_read=False
+    ).count()
 
     return render(request, 'dashboard/index.html', {
         'summary': summary,
@@ -50,12 +65,12 @@ def dashboard(request):
             {
                 'name': c['category__name'] or 'Uncategorized',
                 'total': float(c['total']),
-                'color': c['category__color'] or '#6366f1'
+                'color': c['category__color'] or '#6366f1',
             }
             for c in category_breakdown
         ]),
         'budget_utilization_json': json.dumps(budget_utilization),
-        'recent_transactions': recent_transactions,
+        'recent_transactions': service.get_recent_transactions(),
         'insights': insights,
         'goals': goals,
         'unread_notifications': unread_notifications,
@@ -63,14 +78,30 @@ def dashboard(request):
 
 
 @login_required
+@require_GET
+@never_cache
 def analytics_api(request):
+    """JSON endpoint — used by HTMX widgets and external API consumers."""
+    service = AnalyticsService(request.user)
+    summary, monthly_trend, category_breakdown, budget_utilization = service.get_all_dashboard_data()
+    return JsonResponse({
+        'summary': {k: float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
+        'monthly_trend': monthly_trend,
+        'category_breakdown': [
+            {'name': c['category__name'] or 'Uncategorized', 'total': float(c['total']), 'color': c['category__color']}
+            for c in category_breakdown
+        ],
+        'budget_utilization': budget_utilization,
+    })
+
+
+@login_required
+@require_GET
+def dashboard_kpis(request):
+    """Lightweight KPI-only endpoint for HTMX polling."""
     service = AnalyticsService(request.user)
     summary = service.get_dashboard_summary()
     return JsonResponse({
-        'summary': {k: float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
-        'monthly_trend': service.get_monthly_trend(),
-        'category_breakdown': [
-            {'name': c['category__name'], 'total': float(c['total'])}
-            for c in service.get_category_breakdown()
-        ],
+        k: float(v) if hasattr(v, '__float__') else v
+        for k, v in summary.items()
     })

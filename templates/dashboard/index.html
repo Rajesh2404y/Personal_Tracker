@@ -4,6 +4,10 @@
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
+{% block chartjs %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+
 {% block content %}
 <div class="dashboard-grid">
 
@@ -48,8 +52,7 @@
           <p class="kpi-label">Savings Rate</p>
           <h2 class="kpi-value">{{ summary.savings_rate }}%</h2>
           <div class="progress mt-2" style="height:4px" role="progressbar"
-               aria-valuenow="{{ summary.savings_rate }}" aria-valuemin="0" aria-valuemax="100"
-               aria-label="Savings rate {{ summary.savings_rate }}%">
+               aria-valuenow="{{ summary.savings_rate }}" aria-valuemin="0" aria-valuemax="100">
             <div class="progress-bar bg-success" style="width:{{ summary.savings_rate }}%"></div>
           </div>
         </div>
@@ -57,22 +60,20 @@
     </div>
   </section>
 
-  <!-- Charts Row -->
+  <!-- Charts Row — lazy loaded via IntersectionObserver -->
   <div class="row g-4 mb-4">
-    <!-- Health Score -->
     <div class="col-lg-3">
       <div class="card h-100">
         <div class="card-body text-center d-flex flex-column align-items-center justify-content-center">
           <p class="text-muted small mb-3" id="health-score-label">Financial Health Score</p>
           <div class="health-score-ring" data-score="{{ summary.health_score }}"
-               role="img" aria-labelledby="health-score-label"
-               aria-label="Financial health score: {{ summary.health_score }} out of 100">
+               role="img" aria-labelledby="health-score-label">
             <svg viewBox="0 0 120 120" class="health-svg" aria-hidden="true">
               <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bs-border-color)" stroke-width="10"/>
               <circle cx="60" cy="60" r="50" fill="none"
                 stroke="{% if summary.health_score >= 70 %}#10b981{% elif summary.health_score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"
                 stroke-width="10" stroke-linecap="round"
-                stroke-dasharray="{{ summary.health_score|floatformat:0 }} 100"
+                stroke-dasharray="0 314"
                 transform="rotate(-90 60 60)"
                 style="transition: stroke-dasharray 1s ease"/>
             </svg>
@@ -88,7 +89,6 @@
       </div>
     </div>
 
-    <!-- Monthly Trend Chart -->
     <div class="col-lg-5">
       <div class="card h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -96,23 +96,20 @@
           <span class="badge bg-primary-subtle text-primary">6 months</span>
         </div>
         <div class="card-body">
-          <canvas id="trendChart" height="200"
-                  role="img" aria-labelledby="trend-chart-title"
-                  aria-label="Bar chart showing income and expenses over the last 6 months"></canvas>
+          <canvas id="trendChart" height="200" data-chart="trend"
+                  role="img" aria-labelledby="trend-chart-title"></canvas>
         </div>
       </div>
     </div>
 
-    <!-- Category Pie Chart -->
     <div class="col-lg-4">
       <div class="card h-100">
         <div class="card-header">
           <h2 class="h6 mb-0 fw-semibold" id="category-chart-title">Expense Breakdown</h2>
         </div>
         <div class="card-body d-flex align-items-center justify-content-center">
-          <canvas id="categoryChart" height="200"
-                  role="img" aria-labelledby="category-chart-title"
-                  aria-label="Doughnut chart showing expense breakdown by category"></canvas>
+          <canvas id="categoryChart" height="200" data-chart="category"
+                  role="img" aria-labelledby="category-chart-title"></canvas>
         </div>
       </div>
     </div>
@@ -128,9 +125,8 @@
         </div>
         <div class="card-body">
           {% if budget_utilization_json != '[]' %}
-          <canvas id="budgetChart" height="220"
-                  role="img" aria-labelledby="budget-chart-title"
-                  aria-label="Horizontal bar chart showing budget utilization by category"></canvas>
+          <canvas id="budgetChart" height="220" data-chart="budget"
+                  role="img" aria-labelledby="budget-chart-title"></canvas>
           {% else %}
           <div class="empty-state">
             <i class="bi bi-wallet2 fs-1 text-muted" aria-hidden="true"></i>
@@ -189,8 +185,7 @@
         <div class="card-body p-0">
           <ul class="list-unstyled mb-0" aria-label="AI financial insights">
             {% for insight in insights %}
-            <li class="insight-item insight-{{ insight.severity }}"
-                role="article" aria-label="{{ insight.severity }} insight: {{ insight.title }}">
+            <li class="insight-item insight-{{ insight.severity }}" role="article">
               <div class="insight-icon" aria-hidden="true">
                 <i class="bi {% if insight.severity == 'success' %}bi-check-circle-fill{% elif insight.severity == 'warning' %}bi-exclamation-triangle-fill{% elif insight.severity == 'danger' %}bi-x-circle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
               </div>
@@ -228,13 +223,10 @@
                 </span>
                 <span class="fw-medium">{{ goal.name }}</span>
               </div>
-              <span class="text-muted small" aria-hidden="true">{{ goal.progress_percent }}%</span>
+              <span class="text-muted small">{{ goal.progress_percent }}%</span>
             </div>
-            <div class="progress" style="height:6px"
-                 role="progressbar"
-                 aria-valuenow="{{ goal.progress_percent }}"
-                 aria-valuemin="0" aria-valuemax="100"
-                 aria-label="{{ goal.name }} progress: {{ goal.progress_percent }}%">
+            <div class="progress" style="height:6px" role="progressbar"
+                 aria-valuenow="{{ goal.progress_percent }}" aria-valuemin="0" aria-valuemax="100">
               <div class="progress-bar" style="width:{{ goal.progress_percent }}%; background:{{ goal.color }}"></div>
             </div>
             <div class="d-flex justify-content-between mt-1" aria-hidden="true">
@@ -255,62 +247,112 @@
   </div>
 
 </div>
+
+<!-- Inline chart data — no extra HTTP request -->
+<script id="chart-data" type="application/json">
+{
+  "trend": {{ monthly_trend_json|safe }},
+  "category": {{ category_breakdown_json|safe }},
+  "budget": {{ budget_utilization_json|safe }}
+}
+</script>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const trendData = {{ monthly_trend_json|safe }};
-const categoryData = {{ category_breakdown_json|safe }};
-const budgetData = {{ budget_utilization_json|safe }};
+(function () {
+  // Parse data once
+  const raw = document.getElementById('chart-data');
+  if (!raw) return;
+  const data = JSON.parse(raw.textContent);
 
-const trendLabels = Object.keys(trendData);
-new Chart(document.getElementById('trendChart'), {
-  type: 'bar',
-  data: {
-    labels: trendLabels,
-    datasets: [
-      { label: 'Income', data: trendLabels.map(k => trendData[k].income || 0), backgroundColor: '#10b98133', borderColor: '#10b981', borderWidth: 2, borderRadius: 6 },
-      { label: 'Expenses', data: trendLabels.map(k => trendData[k].expense || 0), backgroundColor: '#ef444433', borderColor: '#ef4444', borderWidth: 2, borderRadius: 6 },
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'top' } },
-    scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
+  function buildTrendChart(canvas) {
+    const labels = Object.keys(data.trend);
+    new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Income', data: labels.map(k => data.trend[k].income || 0), backgroundColor: '#10b98133', borderColor: '#10b981', borderWidth: 2, borderRadius: 6 },
+          { label: 'Expenses', data: labels.map(k => data.trend[k].expense || 0), backgroundColor: '#ef444433', borderColor: '#ef4444', borderWidth: 2, borderRadius: 6 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 600 },
+        plugins: { legend: { position: 'top' } },
+        scales: { y: { beginAtZero: true }, x: { grid: { display: false } } },
+      },
+    });
   }
-});
 
-if (categoryData.length > 0) {
-  new Chart(document.getElementById('categoryChart'), {
-    type: 'doughnut',
-    data: {
-      labels: categoryData.map(c => c.name),
-      datasets: [{ data: categoryData.map(c => c.total), backgroundColor: categoryData.map(c => c.color || '#6366f1'), borderWidth: 2, hoverOffset: 8 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 12 } } },
-      cutout: '65%'
-    }
-  });
-}
+  function buildCategoryChart(canvas) {
+    if (!data.category.length) return;
+    new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels: data.category.map(c => c.name),
+        datasets: [{ data: data.category.map(c => c.total), backgroundColor: data.category.map(c => c.color || '#6366f1'), borderWidth: 2, hoverOffset: 8 }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 600 },
+        plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 12 } } },
+        cutout: '65%',
+      },
+    });
+  }
 
-if (budgetData.length > 0) {
-  new Chart(document.getElementById('budgetChart'), {
-    type: 'bar',
-    data: {
-      labels: budgetData.map(b => b.name),
-      datasets: [
-        { label: 'Budget', data: budgetData.map(b => b.budget), backgroundColor: '#6366f133', borderColor: '#6366f1', borderWidth: 2, borderRadius: 4 },
-        { label: 'Spent', data: budgetData.map(b => b.spent), backgroundColor: budgetData.map(b => b.percent >= 100 ? '#ef444466' : '#f59e0b66'), borderColor: budgetData.map(b => b.percent >= 100 ? '#ef4444' : '#f59e0b'), borderWidth: 2, borderRadius: 4 },
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-      plugins: { legend: { position: 'top' } },
-      scales: { x: { beginAtZero: true }, y: { grid: { display: false } } }
-    }
+  function buildBudgetChart(canvas) {
+    if (!data.budget.length) return;
+    new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: data.budget.map(b => b.name),
+        datasets: [
+          { label: 'Budget', data: data.budget.map(b => b.budget), backgroundColor: '#6366f133', borderColor: '#6366f1', borderWidth: 2, borderRadius: 4 },
+          { label: 'Spent', data: data.budget.map(b => b.spent), backgroundColor: data.budget.map(b => b.percent >= 100 ? '#ef444466' : '#f59e0b66'), borderColor: data.budget.map(b => b.percent >= 100 ? '#ef4444' : '#f59e0b'), borderWidth: 2, borderRadius: 4 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        animation: { duration: 600 },
+        plugins: { legend: { position: 'top' } },
+        scales: { x: { beginAtZero: true }, y: { grid: { display: false } } },
+      },
+    });
+  }
+
+  const builders = { trend: buildTrendChart, category: buildCategoryChart, budget: buildBudgetChart };
+
+  // Use IntersectionObserver — only render chart when canvas enters viewport
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const canvas = entry.target;
+      const type = canvas.dataset.chart;
+      if (builders[type] && typeof Chart !== 'undefined') {
+        builders[type](canvas);
+        observer.unobserve(canvas);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('canvas[data-chart]').forEach(c => observer.observe(c));
+
+  // Animate health score ring after paint
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.health-score-ring').forEach(el => {
+      const score = parseInt(el.dataset.score || 0);
+      const circle = el.querySelector('circle:last-child');
+      if (circle) {
+        const circumference = 2 * Math.PI * 50;
+        setTimeout(() => {
+          circle.style.strokeDasharray = `${(score / 100) * circumference} ${circumference}`;
+        }, 200);
+      }
+    });
   });
-}
+})();
 </script>
 {% endblock %}

@@ -18,21 +18,25 @@ class Budget(models.Model):
     class Meta:
         db_table = 'budgets'
         unique_together = ('user', 'category', 'month', 'year')
-        indexes = [models.Index(fields=['user', 'year', 'month'])]
+        indexes = [
+            models.Index(fields=['user', 'year', 'month']),
+            models.Index(fields=['user', 'category', 'year', 'month'], name='budget_user_cat_ym_idx'),
+        ]
 
     def __str__(self):
         return f'{self.user.email} - {self.category.name} ({self.month}/{self.year})'
 
     @property
     def spent(self):
-        if hasattr(self, '_spent'):
-            return self._spent
+        # Use pre-annotated value if available (avoids N+1 when bulk-fetched)
+        if hasattr(self, '_spent_annotated'):
+            return self._spent_annotated or Decimal('0')
         from apps.transactions.models import Transaction
         from django.db.models import Sum
         result = Transaction.objects.filter(
             user=self.user, category=self.category,
             transaction_type='expense',
-            date__month=self.month, date__year=self.year
+            date__month=self.month, date__year=self.year,
         ).aggregate(total=Sum('amount'))['total']
         return result or Decimal('0')
 

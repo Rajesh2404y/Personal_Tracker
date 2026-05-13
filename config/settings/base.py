@@ -28,6 +28,7 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
+    'cachalot',
 ]
 
 LOCAL_APPS = [
@@ -47,6 +48,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -63,7 +65,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates'],
-        'APP_DIRS': True,
+        'APP_DIRS': False,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
@@ -72,6 +74,12 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'config.context_processors.global_context',
             ],
+            'loaders': [
+                ('django.template.loaders.cached.Loader', [
+                    'django.template.loaders.filesystem.Loader',
+                    'django.template.loaders.app_directories.Loader',
+                ]),
+            ],
         },
     },
 ]
@@ -79,7 +87,14 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
-    'default': env.db('DATABASE_URL', default='sqlite:///db.sqlite3')
+    'default': {
+        **env.db('DATABASE_URL', default='sqlite:///db.sqlite3'),
+        'CONN_MAX_AGE': env.int('DB_CONN_MAX_AGE', default=60),
+        'CONN_HEALTH_CHECKS': True,
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
+    }
 }
 
 CACHE_URL = env('CACHE_URL', default='')
@@ -91,10 +106,28 @@ if CACHE_URL:
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
                 'IGNORE_EXCEPTIONS': True,
+                'SERIALIZER': 'django_redis.serializers.msgpack.MSGPackSerializer',
+                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+                'CONNECTION_POOL_KWARGS': {'max_connections': 50},
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
             },
             'KEY_PREFIX': env('CACHE_KEY_PREFIX', default='finpilot'),
-        }
+            'TIMEOUT': 300,
+        },
+        'sessions': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': CACHE_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+            },
+            'KEY_PREFIX': 'finpilot:sess',
+            'TIMEOUT': 86400,
+        },
     }
+    SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+    SESSION_CACHE_ALIAS = 'sessions'
 else:
     CACHES = {
         'default': {
@@ -155,6 +188,9 @@ REST_FRAMEWORK = {
         'auth': env('DRF_AUTH_THROTTLE', default='10/min'),
         'reports': env('DRF_REPORT_THROTTLE', default='20/hour'),
     },
+    # Reduce response overhead
+    'COMPACT_JSON': True,
+    'UNICODE_JSON': False,
 }
 
 SIMPLE_JWT = {
@@ -173,6 +209,17 @@ CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=False)
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_TASK_TIME_LIMIT = env.int('CELERY_TASK_TIME_LIMIT', default=300)
+CELERY_TASK_SOFT_TIME_LIMIT = env.int('CELERY_TASK_SOFT_TIME_LIMIT', default=240)
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_COMPRESSION = 'gzip'
+CELERY_RESULT_COMPRESSION = 'gzip'
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BEAT_SCHEDULE = {
+    'refresh-all-insights-hourly': {
+        'task': 'apps.ai_engine.tasks.refresh_all_user_insights',
+        'schedule': 3600,
+    },
+}
 
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=['http://localhost:3000'])
 CORS_ALLOW_CREDENTIALS = True
@@ -198,12 +245,8 @@ LOGGING = {
             ),
             'style': '{',
             'defaults': {
-                'request_id': '-',
-                'method': '-',
-                'path': '-',
-                'status_code': '-',
-                'duration_ms': '-',
-                'user': '-',
+                'request_id': '-', 'method': '-', 'path': '-',
+                'status_code': '-', 'duration_ms': '-', 'user': '-',
             },
         },
     },
@@ -212,10 +255,23 @@ LOGGING = {
     },
     'root': {'handlers': ['console'], 'level': 'INFO'},
     'loggers': {
-        'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        'django': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': env('DB_LOG_LEVEL', default='WARNING'),
+            'propagate': False,
+        },
         'apps': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+        'cachalot': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
     },
 }
+
+# Slow query threshold (ms) — logs queries exceeding this
+SLOW_QUERY_THRESHOLD_MS = env.int('SLOW_QUERY_THRESHOLD_MS', default=200)
+
+# WhiteNoise — aggressive browser caching for hashed assets
+WHITENOISE_MAX_AGE = 31536000  # 1 year
+WHITENOISE_ALLOW_ALL_ORIGINS = True
 
 # Use os.environ.get to avoid django-environ misinterpreting special chars
 CURRENCY_SYMBOL = os.environ.get('CURRENCY_SYMBOL', '$')
