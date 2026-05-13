@@ -21,10 +21,10 @@ class RequestLoggingMiddleware:
         log_data = {
             'request_id': request_id,
             'method': request.method,
-            'path': request.path,
+            'path': request.path.replace('\n', '').replace('\r', ''),
             'status_code': response.status_code,
             'duration_ms': round(duration * 1000, 2),
-            'user': getattr(request.user, 'email', 'anon'),
+            'user': str(getattr(request.user, 'email', 'anon')).replace('\n', '').replace('\r', ''),
         }
         if duration >= self.slow_threshold:
             logger.warning('slow_request', extra=log_data)

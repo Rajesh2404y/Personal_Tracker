@@ -1,3 +1,4 @@
+import math
 from rest_framework import generics, viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -24,6 +25,15 @@ from .serializers import (
     RegisterSerializer, UserSerializer, CategorySerializer,
     TransactionSerializer, BudgetSerializer, SavingsGoalSerializer, AIInsightSerializer,
 )
+
+
+def _safe_float(value):
+    """Guard against NaN/Inf in float conversions (CWE-704)."""
+    try:
+        r = float(value)
+        return r if math.isfinite(r) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
 
 
 class RegisterView(generics.CreateAPIView):
@@ -97,9 +107,6 @@ class BudgetViewSet(viewsets.ModelViewSet):
     filterset_fields = ['month', 'year', 'category']
 
     def get_queryset(self):
-        from django.utils import timezone
-        now = timezone.now()
-        # Annotate each budget with its spent amount — eliminates N+1 on serializer
         spent_subquery = (
             Transaction.objects
             .filter(
@@ -185,13 +192,13 @@ class AnalyticsSummaryView(APIView):
         service = AnalyticsService(request.user)
         summary, monthly_trend, category_breakdown, budget_utilization = service.get_all_dashboard_data()
         return Response({
-            'summary': {k: float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
+            'summary': {k: _safe_float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
             'monthly_trend': monthly_trend,
             'category_breakdown': [
                 {
                     'name': c['category__name'] or 'Uncategorized',
-                    'total': float(c['total']),
-                    'color': c['category__color'],
+                    'total': _safe_float(c['total']),
+                    'color': c['category__color'] or '#6366f1',
                 }
                 for c in category_breakdown
             ],

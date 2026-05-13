@@ -25,13 +25,18 @@ def login_view(request):
     if form.is_valid():
         user = form.get_user()
         login(request, user)
-        next_url = request.GET.get('next', 'dashboard')
-        return redirect(next_url)
+        # Validate next_url to prevent open redirect (CWE-601)
+        from django.utils.http import url_has_allowed_host_and_scheme
+        next_url = request.GET.get('next', '')
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+            return redirect(next_url)
+        return redirect('dashboard')
     return render(request, 'registration/login.html', {'form': form})
 
 
 def logout_view(request):
-    logout(request)
+    if request.method == 'POST' or request.user.is_authenticated:
+        logout(request)
     return redirect('login')
 
 

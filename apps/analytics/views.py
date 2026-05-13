@@ -1,4 +1,5 @@
 import json
+import math
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -19,6 +20,15 @@ LANDING_FEATURES = [
 ]
 
 
+def _safe_float(value):
+    """Convert Decimal/float safely — returns 0.0 for NaN/Inf (guards CWE-704)."""
+    try:
+        result = float(value)
+        return result if math.isfinite(result) else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def home(request):
     if request.user.is_authenticated:
         return redirect('dashboard')
@@ -28,20 +38,15 @@ def home(request):
 @login_required
 def dashboard(request):
     service = AnalyticsService(request.user)
-
-    # Single cache round-trip for all dashboard data
     summary, monthly_trend, category_breakdown, budget_utilization = service.get_all_dashboard_data()
 
-    # Trigger async insight refresh via Celery (non-blocking)
     try:
         from apps.ai_engine.tasks import refresh_user_insights
         refresh_user_insights.delay(request.user.id)
     except Exception:
-        # Fallback to sync if Celery not available
         from apps.ai_engine.engine import InsightEngine
         InsightEngine(request.user).refresh_insights()
 
-    # Indexed lookups — fast
     insights = list(
         AIInsight.objects
         .filter(user=request.user, is_read=False)
@@ -64,7 +69,7 @@ def dashboard(request):
         'category_breakdown_json': json.dumps([
             {
                 'name': c['category__name'] or 'Uncategorized',
-                'total': float(c['total']),
+                'total': _safe_float(c['total']),
                 'color': c['category__color'] or '#6366f1',
             }
             for c in category_breakdown
@@ -81,14 +86,17 @@ def dashboard(request):
 @require_GET
 @never_cache
 def analytics_api(request):
-    """JSON endpoint — used by HTMX widgets and external API consumers."""
     service = AnalyticsService(request.user)
     summary, monthly_trend, category_breakdown, budget_utilization = service.get_all_dashboard_data()
     return JsonResponse({
-        'summary': {k: float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
+        'summary': {k: _safe_float(v) if hasattr(v, '__float__') else v for k, v in summary.items()},
         'monthly_trend': monthly_trend,
         'category_breakdown': [
-            {'name': c['category__name'] or 'Uncategorized', 'total': float(c['total']), 'color': c['category__color']}
+            {
+                'name': c['category__name'] or 'Uncategorized',
+                'total': _safe_float(c['total']),
+                'color': c['category__color'] or '#6366f1',
+            }
             for c in category_breakdown
         ],
         'budget_utilization': budget_utilization,
@@ -98,10 +106,9 @@ def analytics_api(request):
 @login_required
 @require_GET
 def dashboard_kpis(request):
-    """Lightweight KPI-only endpoint for HTMX polling."""
     service = AnalyticsService(request.user)
     summary = service.get_dashboard_summary()
     return JsonResponse({
-        k: float(v) if hasattr(v, '__float__') else v
+        k: _safe_float(v) if hasattr(v, '__float__') else v
         for k, v in summary.items()
     })

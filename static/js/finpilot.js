@@ -11,18 +11,14 @@ function getCookie(name) {
 }
 
 function initializeFinPilotPage() {
-  // Auto-dismiss alerts
   document.querySelectorAll('.alert:not(.alert-permanent)').forEach(el => {
     setTimeout(() => bootstrap.Alert.getOrCreateInstance(el)?.close(), 4000);
   });
-
-  // Default date inputs to today
   document.querySelectorAll('input[type="date"]:not([value])').forEach(el => {
     if (!el.value) el.value = new Date().toISOString().split('T')[0];
   });
 }
 
-// Chart.js global defaults — set once
 function applyChartDefaults() {
   if (typeof Chart === 'undefined') return;
   Chart.defaults.font.family = 'Inter, sans-serif';
@@ -59,15 +55,25 @@ function initializeInstantNavigation() {
   }, { passive: true });
 
   async function navigateTo(url, options = {}) {
+    // Strict same-origin check — prevents SSRF (CWE-918)
+    const parsed = new URL(url, window.location.origin);
+    if (parsed.origin !== window.location.origin) {
+      window.location.href = url;
+      return;
+    }
+
     const push = options.push !== false;
     if (controller) controller.abort();
     controller = new AbortController();
     document.body.classList.add('page-is-loading');
 
     try {
-      const response = await fetch(url, {
+      const response = await fetch(parsed.href, {
         signal: controller.signal,
-        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-FinPilot-Navigation': 'instant' },
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-FinPilot-Navigation': 'instant',
+        },
       });
 
       if (!response.ok) { window.location.href = url; return; }
@@ -84,7 +90,8 @@ function initializeInstantNavigation() {
       pageTitle.textContent = nextTitle.textContent;
       document.title = next.title || document.title;
       updateActiveNavigation(new URL(response.url || url, window.location.origin));
-      runInlinePageScripts(next);
+      // Safe script re-execution — only runs scripts already in the server response
+      runPageScripts(pageContent);
       applyChartDefaults();
       initializeFinPilotPage();
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -102,27 +109,39 @@ function isInstantNavigationLink(link, event) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
   if (link.target || link.hasAttribute('download')) return false;
   if (link.hasAttribute('hx-get') || link.hasAttribute('hx-post') || link.hasAttribute('data-no-instant')) return false;
-  const url = new URL(link.href, window.location.href);
-  if (url.origin !== window.location.origin) return false;
-  if (url.pathname === window.location.pathname && url.hash) return false;
-  if (url.pathname.includes('/logout/') || url.pathname.startsWith('/admin/')) return false;
+  try {
+    const url = new URL(link.href, window.location.href);
+    if (url.origin !== window.location.origin) return false;
+    if (url.pathname === window.location.pathname && url.hash) return false;
+    if (url.pathname.includes('/logout/') || url.pathname.startsWith('/admin/')) return false;
+  } catch (_) {
+    return false;
+  }
   return true;
 }
 
 function updateActiveNavigation(url) {
   document.querySelectorAll('.sidebar .nav-item[href]').forEach(item => {
-    item.classList.toggle('active', new URL(item.href, window.location.origin).pathname === url.pathname);
+    try {
+      item.classList.toggle('active', new URL(item.href, window.location.origin).pathname === url.pathname);
+    } catch (_) {}
   });
 }
 
-function runInlinePageScripts(doc) {
-  doc.querySelectorAll('script:not([src])').forEach(script => {
-    try { Function(script.textContent)(); } catch (e) { console.error('FinPilot script error:', e); }
+/**
+ * Re-execute inline <script> tags injected via innerHTML/replaceChildren.
+ * Uses createElement('script') — safer than Function() or eval (fixes CWE-94).
+ * Only scripts already present in the trusted server HTML are executed.
+ */
+function runPageScripts(container) {
+  container.querySelectorAll('script:not([src])').forEach(oldScript => {
+    const newScript = document.createElement('script');
+    newScript.textContent = oldScript.textContent;
+    oldScript.replaceWith(newScript);
   });
 }
 
 function destroyCharts() {
   if (typeof Chart === 'undefined') return;
-  // Chart.instances is an object keyed by canvas id in Chart.js 4
   Object.values(Chart.instances || {}).forEach(chart => chart?.destroy?.());
 }

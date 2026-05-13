@@ -1,4 +1,5 @@
 from decimal import Decimal
+from collections import namedtuple
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
@@ -9,6 +10,9 @@ from apps.core.cache import (
     get_many_user_analytics,
     set_many_user_analytics,
 )
+
+
+DashboardData = namedtuple('DashboardData', ['summary', 'monthly_trend', 'category_breakdown', 'budget_utilization'])
 
 
 class AnalyticsService:
@@ -201,7 +205,12 @@ class AnalyticsService:
         if missing:
             set_many_user_analytics(self.user.id, missing, timeout=120)
 
-        return summary, trend, breakdown, utilization
+        return DashboardData(
+            summary=summary,
+            monthly_trend=trend,
+            category_breakdown=breakdown,
+            budget_utilization=utilization,
+        )
 
     def _calculate_health_score(self, savings_rate, income, expense):
         score = 50

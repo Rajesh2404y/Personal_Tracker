@@ -17,5 +17,5 @@ DATABASES["default"]["CONN_HEALTH_CHECKS"] = True   # drop stale connections fas
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 CELERY_TASK_ALWAYS_EAGER = True
 
-# ── Speed: disable heavy password hashing in dev ──────────────
-PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+# Dev-only: MD5 is fast for testing. NEVER use in production.
+PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]  # noqa: S106

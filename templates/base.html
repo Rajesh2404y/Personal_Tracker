@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}FinPilot{% endblock %} — AI-Powered Finance</title>
   <meta name="description" content="FinPilot — AI-powered personal finance management platform">
+  {% load static %}
+  <link rel="icon" type="image/x-icon" href="{% static 'img/favicon.ico' %}">
 
   <!-- DNS prefetch + preconnect for external resources -->
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -22,8 +24,6 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body>
-{% load static %}
-
 {% if user.is_authenticated %}
 <div class="app-wrapper">
 

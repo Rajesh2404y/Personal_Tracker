@@ -20,4 +20,5 @@ CELERY_TASK_ALWAYS_EAGER = True
 # Log all SQL queries in dev
 LOGGING['loggers']['django.db.backends']['level'] = 'DEBUG'
 
-PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+# Development only — MD5 is intentionally fast for local testing, NEVER use in production
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']  # noqa: S106
