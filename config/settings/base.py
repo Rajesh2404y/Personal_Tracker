@@ -28,8 +28,14 @@ THIRD_PARTY_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
-    'cachalot',
 ]
+
+# Add cachalot only if installed (requires Redis in production)
+try:
+    import cachalot  # noqa: F401
+    THIRD_PARTY_APPS.append('cachalot')
+except ImportError:
+    pass
 
 LOCAL_APPS = [
     'apps.core.apps.CoreConfig',
