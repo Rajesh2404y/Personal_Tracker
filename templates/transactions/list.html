@@ -131,7 +131,7 @@
                         hx-post="{% url 'transaction_delete' txn.pk %}"
                         hx-confirm="Delete this transaction?"
                         hx-target="closest tr"
-                        hx-swap="outerHTML"
+                        hx-swap="outerHTML swap:200ms"
                         hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                   <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>

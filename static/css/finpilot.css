@@ -201,6 +201,9 @@ body { font-family: 'Inter', sans-serif; font-size: 14px; }
 .notification-time { font-size: 11px; color: var(--bs-secondary-color); }
 .badge-dot { position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background: var(--fp-danger); border-radius: 50%; }
 
+/* ── HTMX delete row animation ── */
+tr.htmx-swapping { opacity: 0; transition: opacity 200ms ease; }
+
 /* ── Animations ── */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin .8s linear infinite; display: inline-block; }

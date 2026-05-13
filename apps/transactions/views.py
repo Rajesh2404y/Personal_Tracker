@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction as db_transaction
+from django.http import HttpResponse
 from .models import Transaction, Category
 from .forms import TransactionForm
 from .repository import TransactionRepository
@@ -61,9 +62,10 @@ def transaction_delete(request, pk):
     if request.method == 'POST':
         with db_transaction.atomic():
             txn.delete()
-        messages.success(request, 'Transaction deleted.')
         if request.headers.get('HX-Request'):
-            return render(request, 'partials/empty.html')
+            # Return empty 200 — HTMX outerHTML swap removes the <tr>
+            return HttpResponse(status=200)
+        messages.success(request, 'Transaction deleted.')
         return redirect('transaction_list')
     return render(request, 'transactions/confirm_delete.html', {'transaction': txn})
 
