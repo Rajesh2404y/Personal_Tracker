@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Report Preview{% endblock %}
+{% block page_title %}Report Preview{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-semibold">{{ date_from }} — {{ date_to }}</h6>
+    <div class="d-flex gap-2">
+      <form method="post" action="{% url 'generate_report' %}">
+        {% csrf_token %}
+        <input type="hidden" name="date_from" value="{{ date_from }}">
+        <input type="hidden" name="date_to" value="{{ date_to }}">
+        <input type="hidden" name="format" value="csv">
+        <button type="submit" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>CSV</button>
+      </form>
+      <form method="post" action="{% url 'generate_report' %}">
+        {% csrf_token %}
+        <input type="hidden" name="date_from" value="{{ date_from }}">
+        <input type="hidden" name="date_to" value="{{ date_to }}">
+        <input type="hidden" name="format" value="excel">
+        <button type="submit" class="btn btn-sm btn-outline-primary"><i class="bi bi-download me-1"></i>Excel</button>
+      </form>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="kpi-card kpi-income p-3">
+          <p class="text-muted small mb-1">Total Income</p>
+          <h4 class="fw-bold text-success">{{ CURRENCY_SYMBOL }}{{ summary.income|floatformat:2|intcomma }}</h4>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="kpi-card kpi-expense p-3">
+          <p class="text-muted small mb-1">Total Expenses</p>
+          <h4 class="fw-bold text-danger">{{ CURRENCY_SYMBOL }}{{ summary.expense|floatformat:2|intcomma }}</h4>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="kpi-card kpi-balance p-3">
+          <p class="text-muted small mb-1">Net</p>
+          <h4 class="fw-bold {% if summary.net >= 0 %}text-success{% else %}text-danger{% endif %}">{{ CURRENCY_SYMBOL }}{{ summary.net|floatformat:2|intcomma }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead class="table-header">
+          <tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="text-end">Amount</th></tr>
+        </thead>
+        <tbody>
+          {% for txn in transactions %}
+          <tr>
+            <td class="text-muted small">{{ txn.date|date:"M d, Y" }}</td>
+            <td>{{ txn.description }}</td>
+            <td>{{ txn.category.name|default:"—" }}</td>
+            <td><span class="badge {% if txn.transaction_type == 'income' %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %}">{{ txn.transaction_type|title }}</span></td>
+            <td class="text-end fw-medium {% if txn.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}">
+              {{ CURRENCY_SYMBOL }}{{ txn.amount|floatformat:2|intcomma }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

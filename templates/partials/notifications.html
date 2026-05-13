@@ -1,0 +1,18 @@
+{% for n in notifications %}
+<div class="notification-item {% if not n.is_read %}unread{% endif %}"
+  hx-post="{% url 'notification_read' n.pk %}"
+  hx-trigger="click"
+  hx-swap="none">
+  <div class="notification-icon"><i class="bi bi-bell-fill"></i></div>
+  <div class="notification-body">
+    <p class="notification-title">{{ n.title }}</p>
+    <p class="notification-msg">{{ n.message }}</p>
+    <span class="notification-time">{{ n.created_at|timesince }} ago</span>
+  </div>
+</div>
+{% empty %}
+<div class="p-4 text-center text-muted">
+  <i class="bi bi-bell-slash fs-2 d-block mb-2"></i>
+  No notifications
+</div>
+{% endfor %}

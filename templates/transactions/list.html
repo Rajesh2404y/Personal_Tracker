@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Transactions{% endblock %}
+{% block page_title %}Transactions{% endblock %}
+
+{% block content %}
+<div x-data="{ showFilters: false }">
+
+  <!-- Toolbar -->
+  <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm"
+              @click="showFilters = !showFilters"
+              :aria-expanded="showFilters.toString()"
+              aria-controls="filters-panel">
+        <i class="bi bi-funnel me-1" aria-hidden="true"></i>Filters
+      </button>
+      <a href="{% url 'transaction_create' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Transaction
+      </a>
+    </div>
+    <span class="text-muted small" aria-live="polite">
+      {{ page_obj.paginator.count }} transaction{{ page_obj.paginator.count|pluralize }}
+    </span>
+  </div>
+
+  <!-- Filters Panel -->
+  <div id="filters-panel" x-show="showFilters" x-transition class="card mb-4">
+    <div class="card-body">
+      <form method="get" aria-label="Filter transactions">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label small fw-medium" for="filter-type">Type</label>
+            <select id="filter-type" name="type" class="form-select form-select-sm">
+              <option value="">All Types</option>
+              <option value="income" {% if filters.transaction_type == 'income' %}selected{% endif %}>Income</option>
+              <option value="expense" {% if filters.transaction_type == 'expense' %}selected{% endif %}>Expense</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-medium" for="filter-category">Category</label>
+            <select id="filter-category" name="category" class="form-select form-select-sm">
+              <option value="">All Categories</option>
+              {% for cat in categories %}
+              <option value="{{ cat.id }}" {% if filters.category == cat.id|stringformat:'s' %}selected{% endif %}>{{ cat.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-medium" for="filter-date-from">From</label>
+            <input type="date" id="filter-date-from" name="date_from"
+                   class="form-control form-control-sm" value="{{ filters.date_from|default:'' }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-medium" for="filter-date-to">To</label>
+            <input type="date" id="filter-date-to" name="date_to"
+                   class="form-control form-control-sm" value="{{ filters.date_to|default:'' }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-medium" for="filter-search">Search</label>
+            <input type="search" id="filter-search" name="search"
+                   class="form-control form-control-sm" placeholder="Search..."
+                   value="{{ filters.search|default:'' }}" aria-label="Search transactions">
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+            <a href="{% url 'transaction_list' %}" class="btn btn-outline-secondary btn-sm">Clear</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" aria-label="Transactions list">
+          <thead class="table-header">
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Description</th>
+              <th scope="col">Category</th>
+              <th scope="col">Type</th>
+              <th scope="col" class="text-end">Amount</th>
+              <th scope="col" class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="transaction-table-body">
+            {% for txn in page_obj %}
+            <tr>
+              <td class="text-muted small">
+                <time datetime="{{ txn.date|date:'Y-m-d' }}">{{ txn.date|date:"M d, Y" }}</time>
+              </td>
+              <td>
+                <div class="fw-medium">{{ txn.description }}</div>
+                {% if txn.tag_list %}
+                <div class="mt-1" aria-label="Tags">
+                  {% for tag in txn.tag_list %}
+                  <span class="badge bg-secondary-subtle text-secondary me-1">{{ tag }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </td>
+              <td>
+                {% if txn.category %}
+                <span class="category-badge" style="background:{{ txn.category.color }}20; color:{{ txn.category.color }}">
+                  <i class="bi {{ txn.category.icon }} me-1" aria-hidden="true"></i>{{ txn.category.name }}
+                </span>
+                {% else %}
+                <span class="text-muted" aria-label="No category">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge {% if txn.transaction_type == 'income' %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %}">
+                  {{ txn.transaction_type|title }}
+                </span>
+              </td>
+              <td class="text-end fw-semibold {% if txn.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}"
+                  aria-label="{{ txn.transaction_type }}: {{ CURRENCY_SYMBOL }}{{ txn.amount|floatformat:2 }}">
+                {% if txn.transaction_type == 'income' %}+{% else %}-{% endif %}{{ CURRENCY_SYMBOL }}{{ txn.amount|floatformat:2|intcomma }}
+              </td>
+              <td class="text-end">
+                <a href="{% url 'transaction_edit' txn.pk %}"
+                   class="btn btn-sm btn-ghost"
+                   aria-label="Edit {{ txn.description }}">
+                  <i class="bi bi-pencil" aria-hidden="true"></i>
+                </a>
+                <button class="btn btn-sm btn-ghost text-danger"
+                        aria-label="Delete {{ txn.description }}"
+                        hx-post="{% url 'transaction_delete' txn.pk %}"
+                        hx-confirm="Delete this transaction?"
+                        hx-target="closest tr"
+                        hx-swap="outerHTML"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                  <i class="bi bi-trash" aria-hidden="true"></i>
+                </button>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-5">
+                <i class="bi bi-receipt fs-1 text-muted d-block mb-2" aria-hidden="true"></i>
+                <p class="text-muted">No transactions found.</p>
+                <a href="{% url 'transaction_create' %}" class="btn btn-primary btn-sm">Add Transaction</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer d-flex justify-content-between align-items-center">
+      <span class="text-muted small">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      <nav aria-label="Transaction pages">
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous page">Previous</a>
+          </li>
+          {% endif %}
+          {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next page">Next</a>
+          </li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

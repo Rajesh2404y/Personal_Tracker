@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0 fw-semibold">{{ title }}</h6></div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">Goal Name</label>
+              <input type="text" name="name" class="form-control" value="{{ goal.name|default:'' }}" required placeholder="e.g. Emergency Fund">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Description</label>
+              <textarea name="description" class="form-control" rows="2" placeholder="Optional description">{{ goal.description|default:'' }}</textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Target Amount</label>
+              <div class="input-group">
+                <span class="input-group-text">{{ CURRENCY_SYMBOL }}</span>
+                <input type="number" name="target_amount" class="form-control" step="0.01" min="0.01" value="{{ goal.target_amount|default:'' }}" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Target Date (optional)</label>
+              <input type="date" name="target_date" class="form-control" value="{{ goal.target_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Icon</label>
+              <select name="icon" class="form-select">
+                <option value="bi-piggy-bank" {% if goal.icon == 'bi-piggy-bank' %}selected{% endif %}>🐷 Piggy Bank</option>
+                <option value="bi-house" {% if goal.icon == 'bi-house' %}selected{% endif %}>🏠 House</option>
+                <option value="bi-car-front" {% if goal.icon == 'bi-car-front' %}selected{% endif %}>🚗 Car</option>
+                <option value="bi-airplane" {% if goal.icon == 'bi-airplane' %}selected{% endif %}>✈️ Travel</option>
+                <option value="bi-mortarboard" {% if goal.icon == 'bi-mortarboard' %}selected{% endif %}>🎓 Education</option>
+                <option value="bi-heart" {% if goal.icon == 'bi-heart' %}selected{% endif %}>❤️ Health</option>
+                <option value="bi-trophy" {% if goal.icon == 'bi-trophy' %}selected{% endif %}>🏆 Trophy</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Color</label>
+              <input type="color" name="color" class="form-control form-control-color" value="{{ goal.color|default:'#10b981' }}">
+            </div>
+            <div class="col-12 d-flex gap-2">
+              <button type="submit" class="btn btn-primary">Save Goal</button>
+              <a href="{% url 'goal_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

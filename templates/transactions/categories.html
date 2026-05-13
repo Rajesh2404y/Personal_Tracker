@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Categories{% endblock %}
+{% block page_title %}Categories{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0 fw-semibold">All Categories</h6></div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-header">
+              <tr><th>Name</th><th>Type</th><th>Color</th><th>Default</th></tr>
+            </thead>
+            <tbody>
+              {% for cat in categories %}
+              <tr>
+                <td>
+                  <span style="color:{{ cat.color }}"><i class="bi {{ cat.icon }} me-2"></i></span>
+                  {{ cat.name }}
+                </td>
+                <td><span class="badge {% if cat.category_type == 'income' %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %}">{{ cat.category_type|title }}</span></td>
+                <td><span class="color-swatch" style="background:{{ cat.color }}"></span></td>
+                <td>{% if cat.is_default %}<i class="bi bi-check-circle-fill text-success"></i>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0 fw-semibold">Add Category</h6></div>
+      <div class="card-body">
+        <form method="post" action="{% url 'category_create' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Name</label>
+            <input type="text" name="name" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Type</label>
+            <select name="category_type" class="form-select">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Color</label>
+            <input type="color" name="color" class="form-control form-control-color" value="#6366f1">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Add Category</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

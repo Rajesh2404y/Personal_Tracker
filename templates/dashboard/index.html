@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static humanize %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+
+  <!-- KPI Cards -->
+  <section aria-label="Financial summary" class="row g-4 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-income" role="region" aria-label="Monthly income">
+        <div class="kpi-icon" aria-hidden="true"><i class="bi bi-arrow-down-circle-fill"></i></div>
+        <div class="kpi-body">
+          <p class="kpi-label">Monthly Income</p>
+          <h2 class="kpi-value">{{ CURRENCY_SYMBOL }}{{ summary.month_income|floatformat:2|intcomma }}</h2>
+          <span class="kpi-badge badge-success">This month</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-expense" role="region" aria-label="Monthly expenses">
+        <div class="kpi-icon" aria-hidden="true"><i class="bi bi-arrow-up-circle-fill"></i></div>
+        <div class="kpi-body">
+          <p class="kpi-label">Monthly Expenses</p>
+          <h2 class="kpi-value">{{ CURRENCY_SYMBOL }}{{ summary.month_expense|floatformat:2|intcomma }}</h2>
+          <span class="kpi-badge badge-danger">This month</span>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-balance" role="region" aria-label="Net balance">
+        <div class="kpi-icon" aria-hidden="true"><i class="bi bi-bank2"></i></div>
+        <div class="kpi-body">
+          <p class="kpi-label">Net Balance</p>
+          <h2 class="kpi-value">{{ CURRENCY_SYMBOL }}{{ summary.month_balance|floatformat:2|intcomma }}</h2>
+          <span class="kpi-badge {% if summary.month_balance >= 0 %}badge-success{% else %}badge-danger{% endif %}">
+            {% if summary.month_balance >= 0 %}Positive{% else %}Negative{% endif %}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="kpi-card kpi-savings" role="region" aria-label="Savings rate {{ summary.savings_rate }} percent">
+        <div class="kpi-icon" aria-hidden="true"><i class="bi bi-piggy-bank-fill"></i></div>
+        <div class="kpi-body">
+          <p class="kpi-label">Savings Rate</p>
+          <h2 class="kpi-value">{{ summary.savings_rate }}%</h2>
+          <div class="progress mt-2" style="height:4px" role="progressbar"
+               aria-valuenow="{{ summary.savings_rate }}" aria-valuemin="0" aria-valuemax="100"
+               aria-label="Savings rate {{ summary.savings_rate }}%">
+            <div class="progress-bar bg-success" style="width:{{ summary.savings_rate }}%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Charts Row -->
+  <div class="row g-4 mb-4">
+    <!-- Health Score -->
+    <div class="col-lg-3">
+      <div class="card h-100">
+        <div class="card-body text-center d-flex flex-column align-items-center justify-content-center">
+          <p class="text-muted small mb-3" id="health-score-label">Financial Health Score</p>
+          <div class="health-score-ring" data-score="{{ summary.health_score }}"
+               role="img" aria-labelledby="health-score-label"
+               aria-label="Financial health score: {{ summary.health_score }} out of 100">
+            <svg viewBox="0 0 120 120" class="health-svg" aria-hidden="true">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bs-border-color)" stroke-width="10"/>
+              <circle cx="60" cy="60" r="50" fill="none"
+                stroke="{% if summary.health_score >= 70 %}#10b981{% elif summary.health_score >= 40 %}#f59e0b{% else %}#ef4444{% endif %}"
+                stroke-width="10" stroke-linecap="round"
+                stroke-dasharray="{{ summary.health_score|floatformat:0 }} 100"
+                transform="rotate(-90 60 60)"
+                style="transition: stroke-dasharray 1s ease"/>
+            </svg>
+            <div class="health-score-value" aria-hidden="true">
+              <span class="fs-2 fw-bold">{{ summary.health_score }}</span>
+              <span class="text-muted small">/100</span>
+            </div>
+          </div>
+          <p class="mt-3 fw-semibold {% if summary.health_score >= 70 %}text-success{% elif summary.health_score >= 40 %}text-warning{% else %}text-danger{% endif %}">
+            {% if summary.health_score >= 70 %}Excellent{% elif summary.health_score >= 40 %}Fair{% else %}Needs Attention{% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Trend Chart -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="h6 mb-0 fw-semibold" id="trend-chart-title">Cash Flow Trend</h2>
+          <span class="badge bg-primary-subtle text-primary">6 months</span>
+        </div>
+        <div class="card-body">
+          <canvas id="trendChart" height="200"
+                  role="img" aria-labelledby="trend-chart-title"
+                  aria-label="Bar chart showing income and expenses over the last 6 months"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category Pie Chart -->
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h2 class="h6 mb-0 fw-semibold" id="category-chart-title">Expense Breakdown</h2>
+        </div>
+        <div class="card-body d-flex align-items-center justify-content-center">
+          <canvas id="categoryChart" height="200"
+                  role="img" aria-labelledby="category-chart-title"
+                  aria-label="Doughnut chart showing expense breakdown by category"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget + Recent Transactions -->
+  <div class="row g-4 mb-4">
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="h6 mb-0 fw-semibold" id="budget-chart-title">Budget Utilization</h2>
+          <a href="{% url 'budget_list' %}" class="btn btn-sm btn-ghost text-primary">View All</a>
+        </div>
+        <div class="card-body">
+          {% if budget_utilization_json != '[]' %}
+          <canvas id="budgetChart" height="220"
+                  role="img" aria-labelledby="budget-chart-title"
+                  aria-label="Horizontal bar chart showing budget utilization by category"></canvas>
+          {% else %}
+          <div class="empty-state">
+            <i class="bi bi-wallet2 fs-1 text-muted" aria-hidden="true"></i>
+            <p class="text-muted mt-2">No budgets set for this month.</p>
+            <a href="{% url 'budget_list' %}" class="btn btn-sm btn-primary">Set Budget</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="h6 mb-0 fw-semibold">Recent Transactions</h2>
+          <a href="{% url 'transaction_list' %}" class="btn btn-sm btn-ghost text-primary">View All</a>
+        </div>
+        <div class="card-body p-0">
+          <ul class="transaction-list list-unstyled mb-0" aria-label="Recent transactions">
+            {% for txn in recent_transactions %}
+            <li class="txn-row">
+              <div class="txn-icon" aria-hidden="true"
+                   style="background:{{ txn.category.color|default:'#6366f1' }}20; color:{{ txn.category.color|default:'#6366f1' }}">
+                <i class="bi {{ txn.category.icon|default:'bi-three-dots' }}"></i>
+              </div>
+              <div class="txn-info">
+                <p class="txn-desc">{{ txn.description }}</p>
+                <span class="txn-meta">{{ txn.category.name|default:"Uncategorized" }} · {{ txn.date|date:"M d" }}</span>
+              </div>
+              <div class="txn-amount {% if txn.transaction_type == 'income' %}text-success{% else %}text-danger{% endif %}"
+                   aria-label="{{ txn.transaction_type }}: {{ CURRENCY_SYMBOL }}{{ txn.amount|floatformat:2 }}">
+                {% if txn.transaction_type == 'income' %}+{% else %}-{% endif %}{{ CURRENCY_SYMBOL }}{{ txn.amount|floatformat:2|intcomma }}
+              </div>
+            </li>
+            {% empty %}
+            <li class="empty-state p-4">
+              <i class="bi bi-receipt fs-1 text-muted" aria-hidden="true"></i>
+              <p class="text-muted mt-2">No transactions yet.</p>
+              <a href="{% url 'transaction_create' %}" class="btn btn-sm btn-primary">Add First Transaction</a>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Insights + Goals -->
+  <div class="row g-4">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header d-flex align-items-center gap-2">
+          <i class="bi bi-stars text-warning" aria-hidden="true"></i>
+          <h2 class="h6 mb-0 fw-semibold">AI Insights</h2>
+        </div>
+        <div class="card-body p-0">
+          <ul class="list-unstyled mb-0" aria-label="AI financial insights">
+            {% for insight in insights %}
+            <li class="insight-item insight-{{ insight.severity }}"
+                role="article" aria-label="{{ insight.severity }} insight: {{ insight.title }}">
+              <div class="insight-icon" aria-hidden="true">
+                <i class="bi {% if insight.severity == 'success' %}bi-check-circle-fill{% elif insight.severity == 'warning' %}bi-exclamation-triangle-fill{% elif insight.severity == 'danger' %}bi-x-circle-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+              </div>
+              <div class="insight-body">
+                <p class="insight-title">{{ insight.title }}</p>
+                <p class="insight-msg">{{ insight.message }}</p>
+              </div>
+            </li>
+            {% empty %}
+            <li class="empty-state p-4">
+              <i class="bi bi-stars fs-1 text-muted" aria-hidden="true"></i>
+              <p class="text-muted mt-2">Add transactions to get AI insights.</p>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h2 class="h6 mb-0 fw-semibold">
+            <i class="bi bi-trophy me-2 text-warning" aria-hidden="true"></i>Savings Goals
+          </h2>
+          <a href="{% url 'goal_list' %}" class="btn btn-sm btn-ghost text-primary">View All</a>
+        </div>
+        <div class="card-body">
+          {% for goal in goals %}
+          <div class="goal-item mb-3" role="region" aria-label="{{ goal.name }}: {{ goal.progress_percent }}% complete">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="goal-icon" style="color:{{ goal.color }}" aria-hidden="true">
+                  <i class="bi {{ goal.icon }}"></i>
+                </span>
+                <span class="fw-medium">{{ goal.name }}</span>
+              </div>
+              <span class="text-muted small" aria-hidden="true">{{ goal.progress_percent }}%</span>
+            </div>
+            <div class="progress" style="height:6px"
+                 role="progressbar"
+                 aria-valuenow="{{ goal.progress_percent }}"
+                 aria-valuemin="0" aria-valuemax="100"
+                 aria-label="{{ goal.name }} progress: {{ goal.progress_percent }}%">
+              <div class="progress-bar" style="width:{{ goal.progress_percent }}%; background:{{ goal.color }}"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1" aria-hidden="true">
+              <span class="text-muted small">{{ CURRENCY_SYMBOL }}{{ goal.current_amount|floatformat:0|intcomma }}</span>
+              <span class="text-muted small">{{ CURRENCY_SYMBOL }}{{ goal.target_amount|floatformat:0|intcomma }}</span>
+            </div>
+          </div>
+          {% empty %}
+          <div class="empty-state">
+            <i class="bi bi-trophy fs-1 text-muted" aria-hidden="true"></i>
+            <p class="text-muted mt-2">No active goals.</p>
+            <a href="{% url 'goal_create' %}" class="btn btn-sm btn-primary">Create Goal</a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const trendData = {{ monthly_trend_json|safe }};
+const categoryData = {{ category_breakdown_json|safe }};
+const budgetData = {{ budget_utilization_json|safe }};
+
+const trendLabels = Object.keys(trendData);
+new Chart(document.getElementById('trendChart'), {
+  type: 'bar',
+  data: {
+    labels: trendLabels,
+    datasets: [
+      { label: 'Income', data: trendLabels.map(k => trendData[k].income || 0), backgroundColor: '#10b98133', borderColor: '#10b981', borderWidth: 2, borderRadius: 6 },
+      { label: 'Expenses', data: trendLabels.map(k => trendData[k].expense || 0), backgroundColor: '#ef444433', borderColor: '#ef4444', borderWidth: 2, borderRadius: 6 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top' } },
+    scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
+  }
+});
+
+if (categoryData.length > 0) {
+  new Chart(document.getElementById('categoryChart'), {
+    type: 'doughnut',
+    data: {
+      labels: categoryData.map(c => c.name),
+      datasets: [{ data: categoryData.map(c => c.total), backgroundColor: categoryData.map(c => c.color || '#6366f1'), borderWidth: 2, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 12 } } },
+      cutout: '65%'
+    }
+  });
+}
+
+if (budgetData.length > 0) {
+  new Chart(document.getElementById('budgetChart'), {
+    type: 'bar',
+    data: {
+      labels: budgetData.map(b => b.name),
+      datasets: [
+        { label: 'Budget', data: budgetData.map(b => b.budget), backgroundColor: '#6366f133', borderColor: '#6366f1', borderWidth: 2, borderRadius: 4 },
+        { label: 'Spent', data: budgetData.map(b => b.spent), backgroundColor: budgetData.map(b => b.percent >= 100 ? '#ef444466' : '#f59e0b66'), borderColor: budgetData.map(b => b.percent >= 100 ? '#ef4444' : '#f59e0b'), borderWidth: 2, borderRadius: 4 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { beginAtZero: true }, y: { grid: { display: false } } }
+    }
+  });
+}
+</script>
+{% endblock %}

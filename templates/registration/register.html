@@ -1,0 +1,59 @@
+{% extends 'auth_base.html' %}
+{% block title %}Create Account{% endblock %}
+
+{% block auth_content %}
+<h1 class="auth-title">Create your account</h1>
+<p class="auth-subtitle">Start your financial journey today</p>
+
+<form method="post" x-data="{ loading: false }" @submit="loading = true" novalidate aria-label="Registration form">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-6">
+      <label class="form-label fw-medium" for="{{ form.first_name.id_for_label }}">First Name</label>
+      {{ form.first_name }}
+      {% if form.first_name.errors %}
+      <div class="invalid-feedback d-block" role="alert">{{ form.first_name.errors.0 }}</div>
+      {% endif %}
+    </div>
+    <div class="col-6">
+      <label class="form-label fw-medium" for="{{ form.last_name.id_for_label }}">Last Name</label>
+      {{ form.last_name }}
+      {% if form.last_name.errors %}
+      <div class="invalid-feedback d-block" role="alert">{{ form.last_name.errors.0 }}</div>
+      {% endif %}
+    </div>
+    <div class="col-12">
+      <label class="form-label fw-medium" for="{{ form.email.id_for_label }}">Email Address</label>
+      {{ form.email }}
+      {% if form.email.errors %}
+      <div class="invalid-feedback d-block" role="alert">{{ form.email.errors.0 }}</div>
+      {% endif %}
+    </div>
+    <div class="col-12">
+      <label class="form-label fw-medium" for="{{ form.password1.id_for_label }}">Password</label>
+      {{ form.password1 }}
+      {% if form.password1.errors %}
+      <div class="invalid-feedback d-block" role="alert">{{ form.password1.errors.0 }}</div>
+      {% endif %}
+    </div>
+    <div class="col-12">
+      <label class="form-label fw-medium" for="{{ form.password2.id_for_label }}">Confirm Password</label>
+      {{ form.password2 }}
+      {% if form.password2.errors %}
+      <div class="invalid-feedback d-block" role="alert">{{ form.password2.errors.0 }}</div>
+      {% endif %}
+    </div>
+    <div class="col-12">
+      <button type="submit" class="btn btn-primary w-100 btn-auth" :disabled="loading" aria-label="Create account">
+        <span x-show="!loading">Create Account</span>
+        <span x-show="loading" aria-live="polite">
+          <i class="bi bi-arrow-repeat spin me-2" aria-hidden="true"></i>Creating...
+        </span>
+      </button>
+    </div>
+  </div>
+</form>
+<p class="text-center mt-3 text-muted small">
+  Already have an account? <a href="{% url 'login' %}" class="text-primary fw-medium">Sign in</a>
+</p>
+{% endblock %}

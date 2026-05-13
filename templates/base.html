@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true', sidebarOpen: window.innerWidth > 768 }"
+      :data-bs-theme="darkMode ? 'dark' : 'light'">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FinPilot{% endblock %} — AI-Powered Finance</title>
+  <meta name="description" content="FinPilot — AI-powered personal finance management platform">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  {% load static %}
+  <link href="{% static 'css/finpilot.css' %}" rel="stylesheet">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+{% load static %}
+
+{% if user.is_authenticated %}
+<div class="app-wrapper">
+
+  <!-- Skip to main content — accessibility -->
+  <a href="#page-content" class="visually-hidden-focusable skip-link">Skip to main content</a>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" :class="sidebarOpen ? 'sidebar-open' : 'sidebar-closed'"
+       aria-label="Main navigation" role="navigation">
+
+    <div class="sidebar-header">
+      <a href="{% url 'dashboard' %}" class="brand" aria-label="FinPilot home">
+        <div class="brand-icon" aria-hidden="true"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="brand-name" x-show="sidebarOpen">FinPilot</span>
+      </a>
+      <button class="sidebar-toggle" @click="sidebarOpen = !sidebarOpen"
+              :aria-expanded="sidebarOpen.toString()"
+              :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'">
+        <i class="bi" :class="sidebarOpen ? 'bi-chevron-left' : 'bi-chevron-right'" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="sidebar-nav" role="list">
+      <div class="nav-section" role="listitem">
+        <span class="nav-label" x-show="sidebarOpen" aria-hidden="true">Overview</span>
+        <a href="{% url 'dashboard' %}"
+           class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+           {% if request.resolver_match.url_name == 'dashboard' %}aria-current="page"{% endif %}
+           aria-label="Dashboard">
+          <i class="bi bi-speedometer2" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Dashboard</span>
+        </a>
+      </div>
+
+      <div class="nav-section" role="listitem">
+        <span class="nav-label" x-show="sidebarOpen" aria-hidden="true">Finance</span>
+        <a href="{% url 'transaction_list' %}"
+           class="nav-item {% if 'transaction' in request.resolver_match.url_name %}active{% endif %}"
+           {% if 'transaction' in request.resolver_match.url_name %}aria-current="page"{% endif %}
+           aria-label="Transactions">
+          <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Transactions</span>
+        </a>
+        <a href="{% url 'budget_list' %}"
+           class="nav-item {% if 'budget' in request.resolver_match.url_name %}active{% endif %}"
+           {% if 'budget' in request.resolver_match.url_name %}aria-current="page"{% endif %}
+           aria-label="Budgets">
+          <i class="bi bi-wallet2" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Budgets</span>
+        </a>
+        <a href="{% url 'goal_list' %}"
+           class="nav-item {% if 'goal' in request.resolver_match.url_name %}active{% endif %}"
+           {% if 'goal' in request.resolver_match.url_name %}aria-current="page"{% endif %}
+           aria-label="Savings Goals">
+          <i class="bi bi-trophy" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Goals</span>
+        </a>
+      </div>
+
+      <div class="nav-section" role="listitem">
+        <span class="nav-label" x-show="sidebarOpen" aria-hidden="true">Insights</span>
+        <a href="{% url 'report_dashboard' %}"
+           class="nav-item {% if 'report' in request.resolver_match.url_name %}active{% endif %}"
+           {% if 'report' in request.resolver_match.url_name %}aria-current="page"{% endif %}
+           aria-label="Reports">
+          <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Reports</span>
+        </a>
+        <a href="{% url 'category_list' %}"
+           class="nav-item {% if 'category' in request.resolver_match.url_name %}active{% endif %}"
+           {% if 'category' in request.resolver_match.url_name %}aria-current="page"{% endif %}
+           aria-label="Categories">
+          <i class="bi bi-tags" aria-hidden="true"></i>
+          <span x-show="sidebarOpen">Categories</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <a href="{% url 'profile' %}" class="nav-item" aria-label="My profile">
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        <span x-show="sidebarOpen">{{ user.full_name|truncatechars:20 }}</span>
+      </a>
+      <a href="{% url 'logout' %}" class="nav-item text-danger" aria-label="Log out">
+        <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+        <span x-show="sidebarOpen">Logout</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="main-content" :class="sidebarOpen ? '' : 'sidebar-collapsed'">
+
+    <!-- Topbar -->
+    <header class="topbar" role="banner">
+      <div class="topbar-left">
+        <button class="btn btn-sm btn-ghost d-md-none"
+                @click="sidebarOpen = !sidebarOpen"
+                :aria-expanded="sidebarOpen.toString()"
+                aria-label="Toggle navigation menu">
+          <i class="bi bi-list fs-5" aria-hidden="true"></i>
+        </button>
+        <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-sm btn-ghost"
+                @click="darkMode = !darkMode; localStorage.setItem('darkMode', darkMode)"
+                :aria-label="darkMode ? 'Switch to light mode' : 'Switch to dark mode'">
+          <i class="bi" :class="darkMode ? 'bi-sun' : 'bi-moon'" aria-hidden="true"></i>
+        </button>
+        <div class="position-relative">
+          <a href="{% url 'notification_list' %}"
+             class="btn btn-sm btn-ghost"
+             aria-label="{% if unread_notifications %}{{ unread_notifications }} unread notifications{% else %}Notifications{% endif %}">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+            {% if unread_notifications %}
+            <span class="badge-dot" aria-hidden="true"></span>
+            {% endif %}
+          </a>
+        </div>
+        <a href="{% url 'transaction_create' %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Add Transaction
+        </a>
+      </div>
+    </header>
+
+    <!-- Flash Messages -->
+    <div class="px-4 pt-2" role="alert" aria-live="polite" aria-atomic="true">
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close alert"></button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Page Content -->
+    <main class="page-content" id="page-content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+{% else %}
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.9"></script>
+<script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/finpilot.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

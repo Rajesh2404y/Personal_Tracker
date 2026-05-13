@@ -1,0 +1,31 @@
+{% extends 'auth_base.html' %}
+{% block title %}Sign In{% endblock %}
+
+{% block auth_content %}
+<h1 class="auth-title">Welcome back</h1>
+<p class="auth-subtitle">Sign in to your FinPilot account</p>
+
+<form method="post" x-data="{ loading: false }" @submit="loading = true" novalidate aria-label="Sign in form">
+  {% csrf_token %}
+  <div class="mb-3">
+    <label class="form-label fw-medium" for="{{ form.username.id_for_label }}">Email Address</label>
+    {{ form.username }}
+    {% if form.non_field_errors %}
+    <div class="invalid-feedback d-block" role="alert">{{ form.non_field_errors.0 }}</div>
+    {% endif %}
+  </div>
+  <div class="mb-4">
+    <label class="form-label fw-medium" for="{{ form.password.id_for_label }}">Password</label>
+    {{ form.password }}
+  </div>
+  <button type="submit" class="btn btn-primary w-100 btn-auth" :disabled="loading" aria-label="Sign in">
+    <span x-show="!loading">Sign In</span>
+    <span x-show="loading" aria-live="polite">
+      <i class="bi bi-arrow-repeat spin me-2" aria-hidden="true"></i>Signing in...
+    </span>
+  </button>
+</form>
+<p class="text-center mt-3 text-muted small">
+  Don't have an account? <a href="{% url 'register' %}" class="text-primary fw-medium">Create one</a>
+</p>
+{% endblock %}

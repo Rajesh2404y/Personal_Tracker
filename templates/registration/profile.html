@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block title %}Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card text-center p-4">
+      <div class="avatar-wrapper mx-auto mb-3">
+        {% if profile.avatar %}
+        <img src="{{ profile.avatar.url }}" class="avatar-lg rounded-circle" alt="Avatar">
+        {% else %}
+        <div class="avatar-placeholder-lg">{{ user.first_name.0|upper }}{{ user.last_name.0|upper }}</div>
+        {% endif %}
+      </div>
+      <h5 class="fw-bold">{{ user.full_name }}</h5>
+      <p class="text-muted">{{ user.email }}</p>
+      <span class="badge bg-primary-subtle text-primary">{{ profile.currency }}</span>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header"><h6 class="mb-0 fw-semibold">Edit Profile</h6></div>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">First Name</label>
+              {{ form.first_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Last Name</label>
+              {{ form.last_name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Currency</label>
+              {{ form.currency }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Timezone</label>
+              {{ form.timezone }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Monthly Income Goal</label>
+              {{ form.monthly_income_goal }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Monthly Savings Goal</label>
+              {{ form.monthly_savings_goal }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Bio</label>
+              {{ form.bio }}
+            </div>
+            <div class="col-12">
+              <label class="form-label">Avatar</label>
+              {{ form.avatar }}
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
